@@ -74,10 +74,9 @@ class WhisperExecutor(BaseExecutor):
         self.parser.add_argument(
             '--size',
             type=str,
-            default='large',
-            choices=['large', 'medium', 'base', 'small', 'tiny'],
-            help='Choose model size. now only support large, large:[whisper-large-16k]'
-        )
+            default='turbo',
+            choices=['large', 'medium', 'base', 'small', 'tiny', 'turbo'],
+            help='Choose model size.')
         self.parser.add_argument(
             '--language',
             type=str,
@@ -141,7 +140,7 @@ class WhisperExecutor(BaseExecutor):
                         model_type: str='whisper',
                         lang: str='',
                         task: str='transcribe',
-                        size: str='large',
+                        size: str='turbo',
                         language: str='None',
                         sample_rate: int=16000,
                         cfg_path: Optional[os.PathLike]=None,
@@ -200,6 +199,7 @@ class WhisperExecutor(BaseExecutor):
         # load model
         model_dict = paddle.load(self.ckpt_path)
         dims = ModelDimensions(**model_dict["dims"])
+        self.dims = dims
         self.model = Whisper(dims)
         self.model.load_dict(model_dict)
         self.model.eval()
@@ -251,8 +251,11 @@ class WhisperExecutor(BaseExecutor):
 
         logger.debug(f"audio shape: {audio.shape}")
         # fbank
-        audio = log_mel_spectrogram(audio, resource_path=self.resource_path)
-
+        audio = log_mel_spectrogram(
+            audio,
+            resource_path=self.resource_path,
+            n_mels=self.dims.n_mels,
+            padding=480000)
         audio_len = paddle.to_tensor(audio.shape[0]).unsqueeze(axis=0)
 
         self._inputs["audio"] = audio
@@ -275,7 +278,6 @@ class WhisperExecutor(BaseExecutor):
                           cfg.temperature_increment_on_fallback))
         else:
             temperature = [cfg.temperature]
-
         self._outputs["result"] = self.model.transcribe(
             audio,
             verbose=cfg.verbose,

@@ -45,6 +45,7 @@ class WhisperInfer():
         model_dict = paddle.load(self.config.model_file)
         config.pop("model_file")
         dims = ModelDimensions(**model_dict["dims"])
+        self.dims = dims
         self.model = Whisper(dims)
         self.model.load_dict(model_dict)
 
@@ -64,8 +65,10 @@ class WhisperInfer():
 
             #load audio
             mel = log_mel_spectrogram(
-                args.audio_file, resource_path=config.resource_path)
-
+                args.audio_file,
+                resource_path=config.resource_path,
+                n_mels=self.dims.n_mels,
+                padding=480000)
             result = transcribe(
                 self.model, mel, temperature=temperature, **config)
             if args.result_file is not None:
